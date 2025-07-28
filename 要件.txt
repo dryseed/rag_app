@@ -1,0 +1,56 @@
+ 1. 入力データ（ナレッジベース）
+形式：Excelファイル（2列構成：「質問」「回答」）
+
+内容：QAだけでなく、機能定義・使用説明なども含む
+
+要件：
+
+複数のExcelファイルをアップロード可能
+
+同じデータがある場合、titleやtagを使って更新
+
+起動時にローカルのベクトルストアを自動読み込み（再アップロード不要）
+
+
+
+2. 知識分割およびベクトル化
+文書のタイプに応じたモジュール分割（Text Splitter）
+
+Embedding モデル：HuggingFaceEmbeddings（例：intfloat/multilingual-e5-small）
+
+ベクトルストア：FAISS（ローカルで持続可能）
+
+
+
+3. ユーザーの質問処理
+質問：日本語で入力
+
+処理フロー：
+
+質問をベクトル化
+
+類似するナレッジをFAISSから検索（top-k）
+
+結果を DeepSeek API にコンテキストとして送信
+
+DeepSeek の返答（日本語）を表示
+
+
+
+4. フロントエンド
+Streamlit ベースの簡易 Web UI
+
+機能：
+
+Excel アップロード
+
+質問フォーム
+
+検索されたドキュメントと返答の表示
+
+
+
+5. 使用モデル・API
+LLM：DeepSeek API（chat または coder モデル）
+
+Embedding モデル：intfloat/multilingual-e5-small（日本語対応）

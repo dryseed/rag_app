@@ -1,0 +1,14 @@
+streamlit
+langchain
+faiss-cpu
+pandas
+openai
+huggingface-hub
+sentence-transformers
+pytest
+unstructured[pdf]
+pdf2image
+pytesseract
+pi_heif
+pillow_heif
+python-docx
