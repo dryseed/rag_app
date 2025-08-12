@@ -21,7 +21,10 @@ def create_or_load_vectorstore(embedding) -> Optional[VectorStore]:
 
 def add_documents_to_vectorstore(vs: Optional[VectorStore], docs: List[dict], embedding) -> VectorStore:
     langchain_docs = [
-        Document(page_content=doc["content"], metadata={"title": doc["title"]})
+        Document(
+            page_content=doc["content"],
+            metadata={k: v for k, v in doc.items() if k != "content"}
+        )
         for doc in docs
     ]
     if vs is None:

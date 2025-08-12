@@ -17,7 +17,8 @@ def ask_deepseek(system_prompt: str, user_prompt: str, model: str = "deepseek-ch
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.7
+            temperature=0.7,
+            timeout=30  # タイムアウト設定追加
         )
 
         content = getattr(response.choices[0].message, "content", None)
@@ -25,6 +26,8 @@ def ask_deepseek(system_prompt: str, user_prompt: str, model: str = "deepseek-ch
             return content.strip()
         else:
             return "API応答にcontentが含まれていません"
-            
+    except TimeoutError:
+        return "APIの応答がタイムアウトしました。しばらく経ってから再試行してください。"      
     except Exception as e:
         return f"エラーが発生しました: {e}"
+

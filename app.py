@@ -14,6 +14,10 @@ import json
 
 st.set_page_config(page_title="RAG with DeepSeek", layout="wide")
 
+if not os.getenv("DEEPSEEK_API_KEY"):
+    st.error("DEEPSEEK_API_KEYが設定されていません。.envファイルを確認してください。")
+    st.stop()
+
 # --- カスタムCSSで全体の雰囲気を調整 ---
 st.markdown("""
     <style>
@@ -208,16 +212,12 @@ elif selected == "API仕様書登録":
     with st.container():
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.header("API仕様書登録")
-        st.info("API仕様書（Wordファイル）をアップロードし、内容を分割・登録します。\nパラメータ定義やコード定義は構造的に抽出・プレビューされます。")
+        st.info("API仕様書（WordまたはMarkdown）を登録できます。\nAPIDoc配下の全Markdownも一括登録可能です。")
         uploaded_file = st.file_uploader("📤 API仕様書（.docx）ファイルをアップロードしてください", type=["docx"])
         if uploaded_file:
             try:
-                # --- デバッグ用コード（一時的） ---
                 debug_word_structure(uploaded_file)
-                # --------------------------------
-
                 sections = extract_sections_by_toc_template(uploaded_file)
-                # JSONファイルとして保存
                 json_path = "extracted_sections.json"
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(sections, f, ensure_ascii=False, indent=2)
@@ -230,8 +230,7 @@ elif selected == "API仕様書登録":
                         st.markdown(f"<pre style='font-size:12px'>{sec.get('content','')[:500]}</pre>", unsafe_allow_html=True)
                         if sec.get('tables'):
                             st.markdown(f"**抽出された表:**")
-                            st.table(pd.DataFrame(sec['tables'][0])) # 最初のテーブルのみプレビュー
-                # パラメータ・コード定義のマッピング抽出
+                            st.table(pd.DataFrame(sec['tables'][0]))
                 nlp_results = summarize_api_sections_with_nlp(sections)
                 with st.expander("パラメータ・コード定義マッピングプレビュー", expanded=False):
                     for res in nlp_results:
@@ -240,6 +239,25 @@ elif selected == "API仕様書登録":
                             st.json(res['param_map'])
             except Exception as e:
                 st.error(f"Wordファイルの解析中にエラーが発生しました: {e}")
+        st.markdown("---")
+        st.subheader("APIDoc配下のMarkdown一括登録")
+        if st.button("APIDoc/ 配下のMarkdownを一括抽出・登録"):
+            try:
+                from modules.loader import extract_markdown_sections_from_apidoc
+                sections = extract_markdown_sections_from_apidoc()
+                st.success(f"{len(sections)}件のMarkdownセクションを抽出しました。ベクトルDBへ登録します。")
+                embedding = get_embedding()
+                vs = st.session_state.get("vectorstore") or create_or_load_vectorstore(embedding)
+                vs = add_documents_to_vectorstore(vs, sections, embedding)
+                st.session_state["vectorstore"] = vs
+                st.info("登録完了。API仕様書検索で利用できます。")
+                with st.expander("抽出内容プレビュー（構造化）", expanded=False):
+                    for i, sec in enumerate(sections[:30]):
+                        st.markdown(f"**{i+1}. {sec.get('spec_name','')} / {sec.get('filename','')} - {sec.get('section','')}**", unsafe_allow_html=True)
+                        st.write(f"タイトル: {sec.get('title','')}")
+                        st.markdown(f"<pre style='font-size:12px'>{sec.get('content','')[:500]}</pre>", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Markdown一括登録中にエラーが発生しました: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
 elif selected == "API仕様書検索":

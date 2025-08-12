@@ -1,3 +1,5 @@
+import os
+import markdown
 import sqlite3
 from datetime import datetime, timezone
 from typing import List, Optional, Dict
@@ -223,3 +225,75 @@ def extract_sections_by_toc_template(docx_file):
 
     flush_section()
     return sections_data
+
+
+def extract_markdown_sections_from_apidoc(base_dir="APIDoc"):
+    """
+    APIDoc配下の全サブフォルダ・Markdownファイルを再帰的に探索し、
+    セクションごとにメタデータ（仕様書名・ファイル名・章タイトルなど）を付与して抽出。
+    Returns: List[Dict] (各セクションのcontent, title, section, spec_name, filename, category など)
+    """
+    import re
+    import html
+    sections = []
+    heading_pattern = r'^(#{1,4})\s+(.+)$'  # #, ##, ###, ####
+    for root, dirs, files in os.walk(base_dir):
+        spec_name = os.path.relpath(root, base_dir)
+        if spec_name == ".":
+            continue  # APIDoc直下はスキップ
+        for file in files:
+            if file.endswith(".md"):
+                filepath = os.path.join(root, file)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        md_text = f.read()
+                except Exception:
+                    continue
+                # HTMLタグ・エラー文字列除去
+                md_text = re.sub(r'<[^>]+>', '', md_text)
+                md_text = re.sub(r'InvalidCharacterError:.*', '', md_text)
+                md_text = html.unescape(md_text)
+                # 全見出しの位置を取得
+                headings = [(m.start(), m.group(1), m.group(2).strip()) for m in re.finditer(heading_pattern, md_text, re.MULTILINE)]
+                if not headings:
+                    # 見出しがない場合は全体を1セクション
+                    content = md_text.strip()
+                    if not content or 'InvalidCharacterError' in content:
+                        continue
+                    sections.append({
+                        "content": content,
+                        "title": os.path.splitext(file)[0],
+                        "section": "全体",
+                        "spec_name": spec_name,
+                        "filename": file,
+                        "category": "API仕様書"
+                    })
+                    continue
+                # ファイルタイトルは最初の#見出し、なければファイル名
+                file_title = None
+                for h in headings:
+                    if h[1] == '#':
+                        file_title = h[2]
+                        break
+                if not file_title:
+                    file_title = os.path.splitext(file)[0]
+                # セクションごとに分割
+                for idx, (start, level, title) in enumerate(headings):
+                    end = headings[idx+1][0] if idx+1 < len(headings) else len(md_text)
+                    content = md_text[start:end].strip()
+                    # セクション内容から見出し行を除去
+                    content_lines = content.splitlines()
+                    if content_lines and re.match(heading_pattern, content_lines[0]):
+                        content = '\n'.join(content_lines[1:]).strip()
+                    if not content or 'InvalidCharacterError' in content:
+                        continue
+                    sections.append({
+                        "content": content,
+                        "title": file_title,
+                        "section": title,
+                        "heading_level": len(level),
+                        "spec_name": spec_name,
+                        "filename": file,
+                        "category": "API仕様書"
+                    })
+    return sections
