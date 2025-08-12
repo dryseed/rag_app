@@ -2,21 +2,25 @@
 import os
 import streamlit as st
 import pandas as pd
-from modules.loader import upsert_qa, init_db, load_all_qa, extract_sections_by_toc_template, summarize_api_sections_with_nlp, debug_word_structure
-from modules.vectorstore import create_or_load_vectorstore, add_documents_to_vectorstore
-from modules.embedding_model import get_embedding
-from modules.deepseek_api import ask_deepseek
 import logging
-from modules.utils import validate_metadata, filter_docs, check_file_size, add_query_history
 import re
-from streamlit_option_menu import option_menu
 import json
+from streamlit_option_menu import option_menu
+from modules.qa_agent.loader import upsert_qa, init_db, load_all_qa
+from modules.qa_agent.vectorstore import create_or_load_vectorstore as create_or_load_qa_vectorstore, add_documents_to_vectorstore as add_documents_to_qa_vectorstore
+from modules.api_agent.loader import extract_sections_by_toc_template, summarize_api_sections_with_nlp, debug_word_structure, extract_markdown_sections_from_apidoc
+from modules.api_agent.vectorstore import create_or_load_vectorstore as create_or_load_api_vectorstore, add_documents_to_vectorstore as add_documents_to_api_vectorstore
+from modules.common.embedding_model import get_embedding
+from modules.common.deepseek_api import ask_deepseek
+from modules.common.utils import validate_metadata, filter_docs, check_file_size, add_query_history
 
 st.set_page_config(page_title="RAG with DeepSeek", layout="wide")
+
 
 if not os.getenv("DEEPSEEK_API_KEY"):
     st.error("DEEPSEEK_API_KEYが設定されていません。.envファイルを確認してください。")
     st.stop()
+DB_PATH = 'db/qa_knowledge.db'
 
 # --- カスタムCSSで全体の雰囲気を調整 ---
 st.markdown("""
@@ -82,8 +86,8 @@ if selected == "Excel一括登録":
         st.header("Excel一括登録")
         logging.basicConfig(filename='app.log', level=logging.INFO)
         embedding = get_embedding()
-        if "vectorstore" not in st.session_state:
-            st.session_state["vectorstore"] = None
+        if "qa_vectorstore" not in st.session_state:
+            st.session_state["qa_vectorstore"] = None
         if "tag_set" not in st.session_state:
             st.session_state["tag_set"] = set()
         if "category_set" not in st.session_state:
@@ -107,6 +111,11 @@ if selected == "Excel一括登録":
                     st.success(f"{count} 件のドキュメントをDBに登録しました。")
                     # DBから再取得してカテゴリ・タグを更新
                     st.session_state['categories'], st.session_state['tags'] = get_unique_categories_and_tags()
+                    # ベクトルストアも再構築
+                    all_qa = load_all_qa()
+                    vs = create_or_load_qa_vectorstore(embedding)
+                    vs = add_documents_to_qa_vectorstore(vs, all_qa, embedding)
+                    st.session_state["qa_vectorstore"] = vs
                 except Exception as e:
                     st.error(f"ファイルの読み込み中にエラーが発生しました: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
@@ -125,9 +134,9 @@ elif selected == "問い合わせ回答検索":
             add_query_history(st.session_state, query)
             with st.spinner("検索中..."):
                 embedding = get_embedding()
-                vs = st.session_state.get("vectorstore") or create_or_load_vectorstore(embedding)
+                vs = st.session_state.get("qa_vectorstore") or create_or_load_qa_vectorstore(embedding)
                 if vs is None:
-                    st.error("ベクトルストアがまだ存在しません。先にファイルをアップロードしてください。")
+                    st.error("Q&Aベクトルストアがまだ存在しません。先にファイルをアップロードしてください。")
                 else:
                     try:
                         retriever = vs.as_retriever(search_kwargs={"k": 20})
@@ -243,13 +252,12 @@ elif selected == "API仕様書登録":
         st.subheader("APIDoc配下のMarkdown一括登録")
         if st.button("APIDoc/ 配下のMarkdownを一括抽出・登録"):
             try:
-                from modules.loader import extract_markdown_sections_from_apidoc
                 sections = extract_markdown_sections_from_apidoc()
-                st.success(f"{len(sections)}件のMarkdownセクションを抽出しました。ベクトルDBへ登録します。")
+                st.success(f"{len(sections)}件のMarkdownセクションを抽出しました。API仕様書ベクトルDBへ登録します。")
                 embedding = get_embedding()
-                vs = st.session_state.get("vectorstore") or create_or_load_vectorstore(embedding)
-                vs = add_documents_to_vectorstore(vs, sections, embedding)
-                st.session_state["vectorstore"] = vs
+                vs = st.session_state.get("api_vectorstore") or create_or_load_api_vectorstore(embedding)
+                vs = add_documents_to_api_vectorstore(vs, sections, embedding)
+                st.session_state["api_vectorstore"] = vs
                 st.info("登録完了。API仕様書検索で利用できます。")
                 with st.expander("抽出内容プレビュー（構造化）", expanded=False):
                     for i, sec in enumerate(sections[:30]):
@@ -272,14 +280,13 @@ elif selected == "API仕様書検索":
             add_query_history(st.session_state, query)
             with st.spinner("検索中..."):
                 embedding = get_embedding()
-                vs = st.session_state.get("vectorstore") or create_or_load_vectorstore(embedding)
+                vs = st.session_state.get("api_vectorstore") or create_or_load_api_vectorstore(embedding)
                 if vs is None:
-                    st.error("ベクトルストアがまだ存在しません。先にAPI仕様書を登録してください。")
+                    st.error("API仕様書ベクトルストアがまだ存在しません。先にAPI仕様書を登録してください。")
                 else:
                     try:
                         retriever = vs.as_retriever(search_kwargs={"k": 10})
                         all_results = retriever.invoke(query)
-                        # API仕様書セクションのみ抽出（categoryで判定）
                         results = [doc for doc in all_results if hasattr(doc, "metadata") and doc.metadata.get("category") == "API仕様書"]
                     except Exception as e:
                         st.error(f"検索中にエラーが発生しました: {e}")
