@@ -146,7 +146,7 @@ from typing import List, Dict
 from modules.common import utils
 from modules.common import embedding_model
 
-def extract_markdown_sections_from_apidoc(base_dir="APIDoc"):
+def extract_markdown_sections_from_apidoc(base_dir="api_doc\onepay_cpm"):
 	sections = []
 	heading_pattern = r'^(#{1,4})\s+(.+)$'  # #, ##, ###, ####
 	for root, dirs, files in os.walk(base_dir):
