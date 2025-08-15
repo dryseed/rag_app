@@ -35,18 +35,16 @@ st.markdown("""
 
 # --- サイドバー ---
 with st.sidebar:
-    st.image("https://streamlit.io/images/brand/streamlit-logo-secondary-colormark-darktext.png", width=120)
     selected = option_menu(
         "MENU",
-        ["問い合わせ回答検索", "Excel一括登録", "手動個別登録", "API仕様書登録", "API仕様書検索"],
+        ["QA 検索", "一括QA登録", "手動QA登録", "API仕様書登録", "API仕様書検索"],
         icons=["search", "cloud-upload", "pencil-square", "file-earmark-arrow-up", "file-text",],
         menu_icon="cast",
         default_index=0,
     )
 
 # --- メインエリア ---
-st.title("問い合わせ対応 RAG活用（DeepSeek API）")
-
+st.title("QA RAG（DeepSeek API）")
 def remove_greeting(text):
     """
     回答文からよくある日本語メールの挨拶文を除去します。
@@ -80,10 +78,16 @@ def get_unique_categories_and_tags():
 if 'categories' not in st.session_state or 'tags' not in st.session_state:
     st.session_state['categories'], st.session_state['tags'] = get_unique_categories_and_tags()
 
-if selected == "Excel一括登録":
+if selected == "一括QA登録":
     with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.header("Excel一括登録")
+        st.markdown("""
+            <style>
+                .block-container {
+                    padding-top: 1.5 rem;
+                    }
+            </style>
+            """, unsafe_allow_html=True)
+        st.header("一括QA登録")
         logging.basicConfig(filename='app.log', level=logging.INFO)
         embedding = get_embedding()
         if "qa_vectorstore" not in st.session_state:
@@ -120,10 +124,16 @@ if selected == "Excel一括登録":
                     st.error(f"ファイルの読み込み中にエラーが発生しました: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
-elif selected == "問い合わせ回答検索":
+elif selected == "QA 検索":
     with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.header("問い合わせ回答検索・フィルタ")
+        st.markdown("""
+            <style>
+                .block-container {
+                    padding-top: 1.5 rem;
+                    }
+            </style>
+            """, unsafe_allow_html=True)
+        st.header("QA 検索・フィルタ")
         st.subheader("🔍 フィルタを選択（任意）")
         categories_filter = st.multiselect("システム選択:", options=st.session_state['categories'], key="category_filter", disabled=(len(st.session_state['categories'])==0))
         tags_filter = st.multiselect("タグ選択:", options=st.session_state['tags'], key="tag_filter", disabled=(len(st.session_state['tags'])==0))
@@ -178,10 +188,16 @@ elif selected == "問い合わせ回答検索":
                 st.write(q)
         st.markdown('</div>', unsafe_allow_html=True)
 
-elif selected == "手動個別登録":
+elif selected == "手動QA登録":
     with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.header("手動個別登録")
+        st.markdown("""
+            <style>
+                .block-container {
+                    padding-top: 1.5 rem;
+                    }
+            </style>
+            """, unsafe_allow_html=True)
+        st.header("手動QA登録")
         st.info("問い合わせ内容・回答内容を入力し、要約やタイトルを自動生成できます。カテゴリ・タグを設定して保存してください。")
         question = st.text_area("問い合わせ内容（お客様からの質問）", height=100)
         answer = st.text_area("回答内容（担当者の返信）", height=100)
@@ -219,7 +235,13 @@ elif selected == "手動個別登録":
 
 elif selected == "API仕様書登録":
     with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("""
+            <style>
+                .block-container {
+                    padding-top: 1.5 rem;
+                    }
+            </style>
+            """, unsafe_allow_html=True)
         st.header("API仕様書登録")
         st.info("API仕様書（WordまたはMarkdown）を登録できます。\nAPIDoc配下の全Markdownも一括登録可能です。")
         uploaded_file = st.file_uploader("📤 API仕様書（.docx）ファイルをアップロードしてください", type=["docx"])
@@ -270,7 +292,13 @@ elif selected == "API仕様書登録":
 
 elif selected == "API仕様書検索":
     with st.container():
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown("""
+            <style>
+                .block-container {
+                    padding-top: 1.5 rem;
+                    }
+            </style>
+            """, unsafe_allow_html=True)
         st.header("API仕様書検索")
         st.info("API仕様書の内容に特化した検索・QA機能です。\nパラメータ詳細や仕様の根拠となる参照元（章・見出し）も必ず表示します。")
         query = st.text_input("💬 API仕様書に関する質問を入力してください（日本語）")
