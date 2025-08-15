@@ -13,9 +13,13 @@ from modules.api_agent.vectorstore import create_or_load_vectorstore as create_o
 from modules.common.embedding_model import get_embedding
 from modules.common.deepseek_api import ask_deepseek
 from modules.common.utils import validate_metadata, filter_docs, check_file_size, add_query_history
+# --- 対話（メタエージェントチャットUI） ---
+from modules.agents.qa_agent import QAAgent
+from modules.agents.api_agent import APIAgent
+from modules.agents.meta_agent import MetaAgent
+
 
 st.set_page_config(page_title="RAG with DeepSeek", layout="wide")
-
 
 if not os.getenv("DEEPSEEK_API_KEY"):
     st.error("DEEPSEEK_API_KEYが設定されていません。.envファイルを確認してください。")
@@ -37,8 +41,8 @@ st.markdown("""
 with st.sidebar:
     selected = option_menu(
         "MENU",
-        ["QA 検索", "一括QA登録", "手動QA登録", "API仕様書登録", "API仕様書検索"],
-        icons=["search", "cloud-upload", "pencil-square", "file-earmark-arrow-up", "file-text",],
+        ["対話", "QA 検索", "一括QA登録", "手動QA登録", "API仕様書登録", "API仕様書検索"],
+        icons=["chat-dots","search", "cloud-upload", "pencil-square", "file-earmark-arrow-up", "file-text",],
         menu_icon="cast",
         default_index=0,
     )
@@ -78,7 +82,31 @@ def get_unique_categories_and_tags():
 if 'categories' not in st.session_state or 'tags' not in st.session_state:
     st.session_state['categories'], st.session_state['tags'] = get_unique_categories_and_tags()
 
-if selected == "一括QA登録":
+if selected == "対話":
+    st.header("AIエージェント対話（メタエージェント自動ルーティング）")
+    st.info("1つのフォームで質問すると、AIが最適な知識領域から自動回答します。どの知識領域から回答したかも明示します。")
+    if "meta_agent" not in st.session_state:
+        st.session_state["meta_agent"] = MetaAgent({
+            "qa": QAAgent(),
+            "api": APIAgent(),
+        })
+    meta_agent = st.session_state["meta_agent"]
+    chat_history = st.session_state.get("meta_chat_history", [])
+    user_input = st.text_input("💬 質問を入力してください（日本語）", key="meta_chat_input")
+    if st.button("送信", key="meta_chat_send") and user_input:
+        with st.spinner("AIが回答中..."):
+            answer = meta_agent.route(user_input)
+            last_agent = meta_agent.history[-1]["agent"] if meta_agent.history else "-"
+            chat_history.append({"user": user_input, "answer": answer, "agent": last_agent})
+            st.session_state["meta_chat_history"] = chat_history
+    st.markdown("---")
+    st.markdown("#### チャット履歴")
+    for msg in reversed(chat_history):
+        st.markdown(f"**ユーザー:** {msg['user']}")
+        st.markdown(f"**AI({msg['agent']}知識領域):** {msg['answer']}")
+        st.markdown("---")
+
+elif selected == "一括QA登録":
     with st.container():
         st.markdown("""
             <style>
